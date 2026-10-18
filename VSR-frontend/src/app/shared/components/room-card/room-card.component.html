@@ -1,0 +1,108 @@
+<div
+  class="room-card"
+  [class.room-card--active]="room.active !== false"
+  [style.--card-index]="cardIndex"
+  (click)="joinRoom($event)"
+>
+  <!-- Glowing top accent bar for active rooms -->
+  @if (room.active !== false) {
+    <div class="room-card__glow-bar"></div>
+  }
+
+  <!-- Top Bar: Category pill & Live Status -->
+  <div class="room-card__header">
+    <span class="category-badge" [ngClass]="getCategoryBadgeClass(room.roomType)">
+      {{ getCategoryLabel(room.roomType) }}
+    </span>
+
+    @if (room.active !== false) {
+      <div class="live-badge">
+        <span class="live-badge__dot"></span>
+        <span class="live-badge__text">LIVE</span>
+      </div>
+    }
+  </div>
+
+  <!-- Body Content -->
+  <div class="room-card__body">
+    <h3 class="room-card__title">{{ room.name }}</h3>
+    <p class="room-card__desc">{{ room.description }}</p>
+  </div>
+
+  <!-- People Strip — the "life" section -->
+  @if (room.active !== false) {
+    <div class="room-card__people">
+      <!-- Stacked avatar circles -->
+      <div class="avatar-stack">
+        @if (visibleMembers().length > 0) {
+          @for (member of visibleMembers(); track member.userId; let i = $index) {
+            <div
+              class="avatar-circle"
+              [style.--avatar-hue]="getAvatarHue(member.userId)"
+              [style.z-index]="10 - i"
+              [title]="member.username"
+            >
+              {{ getMemberInitials(member) }}
+            </div>
+          }
+          @if (extraCount() > 0) {
+            <div class="avatar-more">+{{ extraCount() }}</div>
+          }
+        } @else {
+          <div class="avatar-circle avatar-circle--empty" style="--avatar-hue: 220">
+            🌟
+          </div>
+        }
+      </div>
+
+      <!-- Activity text with animated dots -->
+      <div class="activity-line">
+        @if (members().length > 0) {
+          <span class="activity-text">{{ getActivityText() }}</span>
+          <span class="activity-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </span>
+        } @else {
+          <span class="activity-text">Be the first to join!</span>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- Music Tag -->
+  @if (room.musicEnabled) {
+    <div class="room-card__music-tag">
+      <span class="music-eq">
+        <span class="eq-bar"></span>
+        <span class="eq-bar"></span>
+        <span class="eq-bar"></span>
+      </span>
+      <span>Ambient Music</span>
+    </div>
+  }
+
+  <!-- Footer: Capacity & Join Button -->
+  <div class="room-card__footer">
+    <div class="capacity-strip">
+      <span class="capacity-label">👥 <strong>{{ room.capacity || 10 }}</strong> seats</span>
+      <div class="capacity-bar">
+        <div class="capacity-bar__fill" [style.width.%]="getCapacityPercent()"></div>
+      </div>
+    </div>
+
+    <button
+      class="join-btn"
+      [disabled]="isJoining()"
+      (click)="joinRoom($event)"
+    >
+      @if (isJoining()) {
+        <span class="join-btn__spinner"></span>
+        Joining…
+      } @else {
+        Join Room <span class="join-arrow">→</span>
+      }
+    </button>
+  </div>
+</div>

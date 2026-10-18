@@ -1,0 +1,341 @@
+<div class="room-shell">
+  <!-- Top Navigation Header -->
+  <header class="room-header glass-panel">
+    <div class="room-header__left">
+      <button class="icon-btn back-btn" routerLink="/dashboard" title="Back to Dashboard">
+        ←
+      </button>
+      <div class="room-title-wrap">
+        <h1 class="room-title">{{ roomName() }}</h1>
+        <div class="room-badges">
+          <span class="badge badge--live">
+            <span class="pulse-dot"></span> LIVE
+          </span>
+          <span class="room-id">Space #{{ roomId }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Focus Mode Toggle -->
+    <div
+      class="header-timer-pill"
+      [class.focus-active]="focusModeOn()"
+      (click)="toggleFocusMode()"
+      title="Toggle Focus Mode"
+    >
+      <span class="timer-icon">{{ focusModeOn() ? '🎯' : '⏱️' }}</span>
+      <span class="timer-time">{{ focusModeOn() ? 'Focus On' : 'Focus Mode' }}</span>
+    </div>
+
+    <div class="room-header__right">
+      <!-- Theme Switcher -->
+      <button
+        class="icon-btn"
+        (click)="themeService.toggleTheme()"
+        [title]="'Switch to ' + (themeService.currentTheme() === 'dark' ? 'Light' : 'Dark') + ' Mode'"
+      >
+        {{ themeService.currentTheme() === 'dark' ? '☀️' : '🌙' }}
+      </button>
+
+      <!-- Participant Count Pill with live dot -->
+      <span class="count-pill" (click)="switchTab('participants')">
+        <span class="count-live-dot"></span>
+        {{ participantCount() }} Online
+      </span>
+
+      <!-- Sidebar Toggle -->
+      <button class="icon-btn" (click)="sidebarOpen.set(!sidebarOpen())" title="Toggle Side Panel">
+        {{ sidebarOpen() ? '⊡' : '⊞' }}
+      </button>
+
+      <!-- Leave Room Button -->
+      <button class="btn btn--danger btn--sm leave-btn" (click)="leaveRoom()">
+        🚪 Leave
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Room Body -->
+  <div class="room-body" [class.room-body--sidebar-closed]="!sidebarOpen()">
+    <!-- Left Main Stage: Video Grid / Pre-join Lobby -->
+    <main class="room-stage">
+      <!-- 1. Pre-join Room Lobby Card (Before joining video) -->
+      @if (!videoJoined()) {
+        <div class="lobby-wrapper container">
+          <div class="lobby-card glass-panel">
+            <div class="lobby-header">
+              <span class="lobby-badge">STUDY ROOM LOBBY</span>
+              <h2 class="lobby-title">Ready to join {{ roomName() }}?</h2>
+              <p class="lobby-sub">Check your camera & mic settings before stepping into the room.</p>
+            </div>
+
+            <!-- Live Camera Preview Box -->
+            <div class="lobby-preview">
+              <div class="preview-tile">
+                <video #previewVideo class="preview-video-stream" autoplay playsinline muted></video>
+                @if (!previewCamOn()) {
+                  <div class="preview-avatar">
+                    <div class="preview-avatar-circle">
+                      {{ getUserInitials() }}
+                    </div>
+                  </div>
+                }
+
+                <!-- Circular media toggle buttons -->
+                <div class="media-toggles">
+                  <button
+                    class="media-toggle"
+                    [class.media-toggle--on]="previewMicOn()"
+                    [class.media-toggle--off]="!previewMicOn()"
+                    (click)="togglePreviewMic()"
+                    title="Toggle Microphone"
+                  >
+                    {{ previewMicOn() ? '🎤' : '🔇' }}
+                  </button>
+                  <button
+                    class="media-toggle"
+                    [class.media-toggle--on]="previewCamOn()"
+                    [class.media-toggle--off]="!previewCamOn()"
+                    (click)="togglePreviewCam()"
+                    title="Toggle Camera"
+                  >
+                    {{ previewCamOn() ? '📹' : '📷' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active Participants Preview -->
+            <div class="lobby-who-is-here">
+              <span class="who-label">Students currently in this room:</span>
+              <div class="who-chips">
+                @if (wsParticipants().length > 0) {
+                  @for (p of wsParticipants(); track p.userId) {
+                    <div class="who-chip">
+                      <span class="chip-avatar">{{ p.username.substring(0,2).toUpperCase() }}</span>
+                      <span>{{ p.username }}</span>
+                    </div>
+                  }
+                } @else {
+                  <span class="empty-who">
+                    <span class="empty-who-icon">🌟</span>
+                    You'll be the first student in this room!
+                  </span>
+                }
+              </div>
+            </div>
+
+            <div class="lobby-actions">
+              <button
+                class="join-video-btn"
+                [disabled]="isJoining()"
+                (click)="joinVideo()"
+              >
+                {{ isJoining() ? 'Connecting to Room…' : '🚀 Enter Study Room' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- 2. Live Video Grid Area (After joining) -->
+      @if (videoJoined()) {
+        <div class="video-stage-container">
+          <!-- Spotlight / Pinned Mode -->
+          @if (pinnedParticipant(); as pinned) {
+            <div class="pinned-stage">
+              <div class="pinned-main">
+                <app-video-tile
+                  [videoTrack]="pinned.videoTrack"
+                  [participantName]="pinned.name"
+                  [isLocal]="pinned.isLocal"
+                  [isCameraEnabled]="pinned.isCameraEnabled"
+                  [isMicEnabled]="pinned.isMicEnabled"
+                  [isSpeaking]="pinned.isSpeaking"
+                  [isHandRaised]="pinned.isHandRaised"
+                  [isPinned]="true"
+                  [connectionQuality]="pinned.connectionQuality"
+                  (togglePin)="pinParticipant(pinned.identity)"
+                ></app-video-tile>
+              </div>
+
+              @if (thumbnailParticipants().length > 0) {
+                <div class="thumbnail-strip">
+                  @for (p of thumbnailParticipants(); track p.identity) {
+                    <div class="thumb-item">
+                      <app-video-tile
+                        [videoTrack]="p.videoTrack"
+                        [participantName]="p.name"
+                        [isLocal]="p.isLocal"
+                        [isCameraEnabled]="p.isCameraEnabled"
+                        [isMicEnabled]="p.isMicEnabled"
+                        [isSpeaking]="p.isSpeaking"
+                        [isHandRaised]="p.isHandRaised"
+                        [isPinned]="false"
+                        [connectionQuality]="p.connectionQuality"
+                        (togglePin)="pinParticipant(p.identity)"
+                      ></app-video-tile>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          } @else {
+            <!-- Equal Multi-Participant Video Grid -->
+            <div class="video-grid" [class]="'video-grid--' + (lk.participants().length || 1)">
+              @if (lk.participants().length > 0) {
+                @for (p of lk.participants(); track p.identity) {
+                  <app-video-tile
+                    [videoTrack]="p.videoTrack"
+                    [participantName]="p.name"
+                    [isLocal]="p.isLocal"
+                    [isCameraEnabled]="p.isCameraEnabled"
+                    [isMicEnabled]="p.isMicEnabled"
+                    [isSpeaking]="p.isSpeaking"
+                    [isHandRaised]="p.isHandRaised"
+                    [isPinned]="false"
+                    [connectionQuality]="p.connectionQuality"
+                    (togglePin)="pinParticipant(p.identity)"
+                  ></app-video-tile>
+                }
+              } @else {
+                <!-- Purely dynamic active participant tile -->
+                <app-video-tile
+                  [participantName]="'You'"
+                  [isLocal]="true"
+                  [isCameraEnabled]="lk.isCameraEnabled()"
+                  [isMicEnabled]="lk.isMicEnabled()"
+                ></app-video-tile>
+              }
+            </div>
+          }
+        </div>
+      }
+    </main>
+
+    <!-- Right Collapsible Side Panel (Chat, Participants, Timer, Notes) -->
+    @if (sidebarOpen()) {
+      <aside class="room-sidebar glass-panel">
+        <nav class="sidebar-nav">
+          <button
+            class="tab-btn"
+            [class.active]="activeTab() === 'chat'"
+            (click)="switchTab('chat')"
+          >
+            💬 Chat
+            @if (unreadChat() > 0) {
+              <span class="tab-badge">{{ unreadChat() }}</span>
+            }
+          </button>
+          <button
+            class="tab-btn"
+            [class.active]="activeTab() === 'participants'"
+            (click)="switchTab('participants')"
+          >
+            👥 People
+          </button>
+          <button
+            class="tab-btn"
+            [class.active]="activeTab() === 'timer'"
+            (click)="switchTab('timer')"
+          >
+            ⏱️ Timer
+          </button>
+          <button
+            class="tab-btn"
+            [class.active]="activeTab() === 'notes'"
+            (click)="switchTab('notes')"
+          >
+            📝 Notes
+          </button>
+        </nav>
+
+        <div class="sidebar-tab-content">
+          @if (activeTab() === 'chat') {
+            <app-chat-panel [roomId]="roomId" [participants]="wsParticipants()" class="fill"></app-chat-panel>
+          }
+          @if (activeTab() === 'participants') {
+            <div class="participants-panel">
+              <h3 class="panel-heading">Active Students ({{ wsParticipants().length }})</h3>
+              <div class="people-list">
+                @if (wsParticipants().length > 0) {
+                  @for (p of wsParticipants(); track p.userId) {
+                    <div class="person-row">
+                      <div class="person-avatar">
+                        {{ p.username.substring(0,2).toUpperCase() }}
+                      </div>
+                      <div class="person-info">
+                        <span class="person-name">{{ p.username }}</span>
+                        <span class="person-status">🟢 Focused</span>
+                      </div>
+                    </div>
+                  }
+                } @else {
+                  <p class="panel-empty">Waiting for classmates to join...</p>
+                }
+              </div>
+            </div>
+          }
+          @if (activeTab() === 'timer') {
+            <app-pomodoro-timer [roomId]="roomId" [roomType]="roomType()"></app-pomodoro-timer>
+          }
+          @if (activeTab() === 'notes') {
+            <app-notes-panel [roomId]="roomId" class="fill"></app-notes-panel>
+          }
+        </div>
+      </aside>
+    }
+  </div>
+
+  <!-- Floating Control Bar (After Joining Video) -->
+  @if (videoJoined()) {
+    <footer class="floating-control-bar glass-panel">
+      <button
+        class="ctrl-btn"
+        [class.ctrl-btn--off]="!lk.isMicEnabled()"
+        (click)="toggleMic()"
+        title="Toggle Mic"
+      >
+        <span class="ctrl-icon">{{ lk.isMicEnabled() ? '🎤' : '🔇' }}</span>
+        <span class="ctrl-text">{{ lk.isMicEnabled() ? 'Mute' : 'Unmute' }}</span>
+      </button>
+
+      <button
+        class="ctrl-btn"
+        [class.ctrl-btn--off]="!lk.isCameraEnabled()"
+        (click)="toggleCamera()"
+        title="Toggle Camera"
+      >
+        <span class="ctrl-icon">{{ lk.isCameraEnabled() ? '📹' : '📷' }}</span>
+        <span class="ctrl-text">{{ lk.isCameraEnabled() ? 'Cam Off' : 'Cam On' }}</span>
+      </button>
+
+      <button
+        class="ctrl-btn"
+        [class.active]="lk.isScreenSharing()"
+        (click)="toggleScreenShare()"
+        title="Share Screen"
+      >
+        <span class="ctrl-icon">🖥️</span>
+        <span class="ctrl-text">Share</span>
+      </button>
+
+      <button
+        class="ctrl-btn"
+        [class.active]="lk.isRaisingHand()"
+        (click)="toggleRaiseHand()"
+        title="Raise Hand"
+      >
+        <span class="ctrl-icon">✋</span>
+        <span class="ctrl-text">Hand</span>
+      </button>
+
+      <div class="ctrl-divider"></div>
+
+      <button class="ctrl-btn ctrl-btn--leave" (click)="leaveRoom()" title="Leave Room">
+        <span class="ctrl-icon">🚪</span>
+        <span class="ctrl-text">Leave</span>
+      </button>
+    </footer>
+  }
+</div>
